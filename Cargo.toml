@@ -1,0 +1,13 @@
+[package]
+name = "cpa-lib"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "cpa_lib"
+crate-type = ["cdylib"]
+
+[dependencies]
+numpy = "0.18.0"
+ocl = "0.19.4"
+pyo3 = { version = "0.18.3", features = ["extension-module"] }

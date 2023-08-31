@@ -1,0 +1,52 @@
+[tool.poetry]
+name = "esp-cpa-board"
+version = "0.1.0"
+description = "Firmware, gateware, and host software of the ESP CPA Board"
+authors = ["courk <courk@courk.cc>"]
+readme = "README.md"
+packages = [{ include = "esp_cpa_board" }]
+
+[tool.poetry.dependencies]
+python = ">=3.11,<3.12"
+amaranth = { git = "https://github.com/amaranth-lang/amaranth.git", rev = "5f6b36e" }
+pyserial = "^3.5"
+fx2 = "^0.11"
+typer = "^0.9.0"
+rich = "^13.3.5"
+libusb1 = "^3.0.0"
+numpy = "^1.24.3"
+maturin = "^0.15.1"
+scipy = "^1.10.1"
+pyqtgraph = "^0.13.3"
+pyside6 = "^6.5.0"
+zarr = "^2.14.2"
+pandas = "^2.0.3"
+plotly = "^5.15.0"
+pycryptodome = "^3.18.0"
+aeskeyschedule = "^0.0.3"
+
+[tool.poetry.group.dev.dependencies]
+black = "^23.3.0"
+ruff = "^0.0.265"
+mypy = "^1.2.0"
+pre-commit = "^3.3.1"
+codespell = "^2.2.4"
+
+[build-system]
+requires = ["maturin>=0.14,<0.15"]
+build-backend = "maturin"
+
+[tool.ruff]
+select = ["E", "D", "F", "N", "I001", "W"]
+ignore = ["E501", "ANN101", "D213", "D203", "D102"]
+
+[tool.ruff.pydocstyle]
+convention = "google"
+
+[tool.poetry.scripts]
+ctrl = "ctrl:app"
+measure = "measure:app"
+analyze = "analyze:app"
+plot = "plot:app"
+key-tools = "key_tools:app"
+build-gateware = "esp_cpa_board.gateware:build_gateware"
