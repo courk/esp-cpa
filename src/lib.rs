@@ -11,8 +11,8 @@ mod power_consumption_models;
 
 use correlation_engine::OpenclCorrelationEngine;
 use power_consumption_models::{
-    ConsumptionModelRound0, ConsumptionModelRound0DecTable, ConsumptionModelRound1,
-    ConsumptionModelRound1DecTable, ConsumptionModelTrait,
+    state_hamming_weight, ConsumptionModelRound0, ConsumptionModelRound0DecTable,
+    ConsumptionModelRound1, ConsumptionModelRound1DecTable, ConsumptionModelTrait,
 };
 
 #[pyclass]
@@ -125,7 +125,7 @@ impl CpaSolver {
         // Instantiate a correlation engine if needed
         if self.correlation_engine.is_none() {
             let duration = py_samples.shape()[1];
-            let correlation_engine = match OpenclCorrelationEngine::new(duration) {
+            let correlation_engine = match OpenclCorrelationEngine::new(duration, 256) {
                 Ok(engine) => engine,
                 Err(e) => {
                     let msg = format!("Cannot build correlation engine: {:?}", e);
@@ -185,9 +185,110 @@ impl CpaSolver {
     }
 }
 
+#[pyclass]
+struct AssessmentSolver {
+    correlation_engine: Option<OpenclCorrelationEngine>,
+    keys: Vec<[u8; 16]>,
+}
+
+#[pymethods]
+impl AssessmentSolver {
+    #[new]
+    fn new(keys: Vec<[u8; 16]>) -> PyResult<Self> {
+        let ret = AssessmentSolver {
+            correlation_engine: None,
+            keys,
+        };
+        Ok(ret)
+    }
+
+    fn update(
+        &mut self,
+        payloads: Vec<[u8; 16]>,
+        py_samples: PyReadonlyArray2<f64>,
+    ) -> PyResult<()> {
+        // Instantiate a correlation engine if needed
+        if self.correlation_engine.is_none() {
+            let duration = py_samples.shape()[1];
+
+            // Check length of AES states power vector
+            let dummy_payload = [0u8; 16];
+            let dummy_states = aes::compute_all_states(&dummy_payload, &self.keys);
+            let correlation_engine =
+                match OpenclCorrelationEngine::new(duration, dummy_states.len()) {
+                    Ok(engine) => engine,
+                    Err(e) => {
+                        let msg = format!("Cannot build correlation engine: {:?}", e);
+                        return Err(PyErr::new::<PyTypeError, _>(msg));
+                    }
+                };
+            self.correlation_engine = Some(correlation_engine);
+        }
+
+        // Generate power consumption values for all possible payloads
+        let s_power_consumption: Vec<Vec<f64>> = payloads
+            .iter()
+            .map(|c| {
+                aes::compute_all_states(c, &self.keys)
+                    .iter()
+                    .map(|s| state_hamming_weight(s))
+                    .collect()
+            })
+            .collect();
+
+        // Swap axes
+        let mut power_consumption: Vec<Vec<f64>> = Vec::new();
+        for x in 0..s_power_consumption[0].len() {
+            let v: Vec<f64> = (0..s_power_consumption.len())
+                .map(|y| s_power_consumption[y][x])
+                .collect();
+            power_consumption.push(v);
+        }
+
+        let mut samples: Vec<Vec<f64>> = Vec::new();
+        let py_samples = py_samples.as_array();
+
+        for column in py_samples.columns() {
+            let v = column.to_vec();
+            samples.push(v);
+        }
+
+        let correlation_engine = self.correlation_engine.as_mut().unwrap();
+        match correlation_engine.update(samples, power_consumption) {
+            Ok(_) => Ok(()),
+            Err(e) => {
+                let msg = format!("Cannot update correlation engine: {:?}", e);
+                Err(PyErr::new::<PyTypeError, _>(msg))
+            }
+        }
+    }
+
+    fn get_result(&self) -> PyResult<Py<PyArray2<f64>>> {
+        if self.correlation_engine.is_none() {
+            return Err(PyErr::new::<PyTypeError, _>("No results"));
+        }
+        let correlation_engine = self.correlation_engine.as_ref().unwrap();
+        let result = match correlation_engine.get_result() {
+            Ok(result) => result,
+            Err(e) => {
+                let msg = format!("Cannot get correlation results: {:?}", e);
+                return Err(PyErr::new::<PyTypeError, _>(msg));
+            }
+        };
+
+        let ret = Python::with_gil(|py| -> Py<PyArray2<f64>> {
+            let test = PyArray2::from_vec2(py, &result).unwrap();
+            test.to_owned()
+        });
+
+        Ok(ret)
+    }
+}
+
 #[pymodule]
 fn cpa_lib(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<CpaSolver>()?;
+    m.add_class::<AssessmentSolver>()?;
 
     Ok(())
 }

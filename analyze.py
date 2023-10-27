@@ -14,6 +14,7 @@ from rich.progress import track
 from scipy import signal
 
 from esp_cpa_board import SignalPreprocessor, load_config
+from esp_cpa_board.aes_utils import AesDecryptOperationType, derivate_round_keys
 
 app = typer.Typer()
 
@@ -529,6 +530,79 @@ def compose_correlations(
                 result[:, i, :, :] *= data[:, i, :, :]
             else:
                 result[:, i, :, :] *= data[:, -1, :, :]
+
+
+@app.command()
+def leakage_assessment(
+    data_filename: Path,
+    config_filename: Path,
+    key_file: Path,
+    output_filename: Path,
+) -> None:
+    """Perform a leakage assessment (ESP32-C3 or ESP32-C6 targets)."""
+    config = load_config(config_filename)
+    signal_preprocessor = SignalPreprocessor(config)
+
+    data_f = zarr.open(data_filename, "r")
+
+    samples_array = data_f["samples"]
+    payloads_array = data_f["payloads"]
+
+    chunk_size = data_f["samples"].chunks[0]
+    n_measurements = (payloads_array.shape[0] // chunk_size) * chunk_size
+
+    aes_round_index = [0, 0, 0, 0]
+    aes_operation_type = [
+        AesDecryptOperationType.INPUT_DATA,
+        AesDecryptOperationType.ADD_ROUND_KEY,
+        AesDecryptOperationType.INV_SHIFT_ROW,
+        AesDecryptOperationType.INV_SUB_BYTES,
+    ]
+    for i in range(9):
+        aes_operation_type.append(AesDecryptOperationType.ADD_ROUND_KEY)
+        aes_operation_type.append(AesDecryptOperationType.INV_MIX_COLUMN)
+        aes_operation_type.append(AesDecryptOperationType.INV_SHIFT_ROW)
+        aes_operation_type.append(AesDecryptOperationType.INV_SUB_BYTES)
+        for _ in range(4):
+            aes_round_index.append(i + 1)
+    aes_operation_type.append(AesDecryptOperationType.ADD_ROUND_KEY)
+    aes_round_index.append(10)
+
+    keys = derivate_round_keys(key_file)
+
+    solver = cpa_lib.AssessmentSolver(keys)
+
+    for i in track(range(0, n_measurements, chunk_size)):
+        chunk = samples_array[i : i + chunk_size]
+
+        # Don't forget to flip the plaintext (ESP32 implementation detail)
+        plaintext = np.flip(
+            payloads_array[i : i + chunk_size],
+            axis=1,
+        )
+
+        sig = signal_preprocessor.process(chunk)
+
+        solver.update(plaintext, sig)
+
+    result = solver.get_result()
+    result = np.abs(result)
+
+    dataframes = []
+    for i, corr in enumerate(result):
+        df = pd.DataFrame(
+            {
+                "Sample Index": range(len(corr)),
+                "Value": corr / max(corr),  # Normalize correlation values
+                "Round": aes_round_index[i],
+                "Operation Type": aes_operation_type[i],
+            }
+        )
+        dataframes.append(df)
+
+    result = pd.concat(dataframes)
+
+    result.to_csv(output_filename)
 
 
 if __name__ == "__main__":

@@ -12,6 +12,8 @@ import plotly.graph_objects as go
 import typer
 from plotly.subplots import make_subplots
 
+from esp_cpa_board.aes_utils import AesDecryptOperationType
+
 app = typer.Typer()
 
 
@@ -132,6 +134,55 @@ def plot_correlations(ctx: typer.Context, input_file: Path, step_size: int = 50_
     )
     fig.update_traces(line=dict(color="grey"))
     fig.update_traces(line=dict(color="red"), selector=dict(name="Correct Guess"))
+
+    _render(ctx, fig)
+
+
+@app.command()
+def plot_leakages(ctx: typer.Context, input_file: Path):
+    """Plot data from the leakage assessment results."""
+    df = pd.read_csv(input_file)
+
+    # Placeholder for blank operations, it makes the plot look cleaner
+    dataframes = []
+    for operation, round_index in [
+        (AesDecryptOperationType.INV_MIX_COLUMN, 0),
+        (AesDecryptOperationType.INV_MIX_COLUMN, 10),
+        (AesDecryptOperationType.INV_SHIFT_ROW, 10),
+        (AesDecryptOperationType.INV_SUB_BYTES, 10),
+    ]:
+        d = pd.DataFrame(
+            {
+                "Sample Index": [0],
+                "Value": [0],
+                "Round": round_index,
+                "Operation Type": operation,
+            }
+        )
+        dataframes.append(d)
+
+    df = pd.concat([df, *dataframes])
+
+    fig = px.line(
+        df[df["Operation Type"] != "Input"],
+        x="Sample Index",
+        y="Value",
+        color="Operation Type",
+        facet_col="Operation Type",
+        facet_row="Round",
+        title=ctx.obj.graph_title,
+        facet_row_spacing=0.03,
+        facet_col_spacing=0.03,
+        category_orders={
+            "Operation Type": [
+                AesDecryptOperationType.ADD_ROUND_KEY,
+                AesDecryptOperationType.INV_MIX_COLUMN,
+                AesDecryptOperationType.INV_SHIFT_ROW,
+                AesDecryptOperationType.INV_SUB_BYTES,
+            ]
+        },
+        height=800,
+    )
 
     _render(ctx, fig)
 
