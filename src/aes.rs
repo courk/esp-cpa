@@ -258,10 +258,10 @@ impl AesState {
     }
 }
 
-pub fn compute_all_states(payload: &[u8; 16], keys: &Vec<[u8; 16]>) -> Vec<[u8; 16]> {
+pub fn compute_all_states(payload: &[u8; 16], keys: &[[u8; 16]]) -> Vec<[u8; 16]> {
     let mut result: Vec<[u8; 16]> = Vec::new();
 
-    result.push(payload.clone());
+    result.push(*payload);
 
     let mut aes_state = AesState::new(payload);
 

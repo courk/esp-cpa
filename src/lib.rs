@@ -231,7 +231,7 @@ impl AssessmentSolver {
             .map(|c| {
                 aes::compute_all_states(c, &self.keys)
                     .iter()
-                    .map(|s| state_hamming_weight(s))
+                    .map(state_hamming_weight)
                     .collect()
             })
             .collect();
