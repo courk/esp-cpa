@@ -195,6 +195,10 @@ struct AssessmentSolver {
 impl AssessmentSolver {
     #[new]
     fn new(keys: Vec<[u8; 16]>) -> PyResult<Self> {
+        if keys.len() != 11 {
+            return Err(PyErr::new::<PyTypeError, _>("11 keys must be provided"));
+        }
+
         let ret = AssessmentSolver {
             correlation_engine: None,
             keys,
