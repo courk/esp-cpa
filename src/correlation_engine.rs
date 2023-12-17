@@ -7,15 +7,16 @@ pub struct OpenclCorrelationEngine {
     result_buffer: Buffer<f64>,
     last_n: usize,
     sample_duration: usize,
+    n_guesses: usize
 }
 
 impl OpenclCorrelationEngine {
-    pub fn new(sample_duration: usize) -> Result<Self, Box<dyn Error>> {
+    pub fn new(sample_duration: usize, n_guesses: usize) -> Result<Self, Box<dyn Error>> {
         let src = include_str!("correlation.cl");
 
         let pro_queue = ProQue::builder()
             .src(src)
-            .dims((256, sample_duration))
+            .dims((n_guesses, sample_duration))
             .build()?;
 
         //
@@ -53,6 +54,7 @@ impl OpenclCorrelationEngine {
             result_buffer,
             last_n: 0,
             sample_duration,
+            n_guesses
         };
 
         Ok(ret)
@@ -92,7 +94,7 @@ impl OpenclCorrelationEngine {
         let guesses_buffer = Buffer::builder()
             .queue(self.pro_queue.queue().clone())
             .flags(MemFlags::new().read_only())
-            .len((256, n_samples))
+            .len((self.n_guesses, n_samples))
             .copy_host_slice(&guesses)
             .build()?;
 

@@ -257,3 +257,39 @@ impl AesState {
         }
     }
 }
+
+pub fn compute_all_states(payload: &[u8; 16], keys: &[[u8; 16]]) -> Vec<[u8; 16]> {
+    let mut result: Vec<[u8; 16]> = Vec::new();
+
+    result.push(*payload);
+
+    let mut aes_state = AesState::new(payload);
+
+    aes_state.add_round_key(&keys[0]);
+    result.push(aes_state.data);
+
+    aes_state.shift_rows_inv();
+    result.push(aes_state.data);
+
+    aes_state.sub_bytes_inv();
+    result.push(aes_state.data);
+
+    for k in keys.iter().skip(1).take(9) {
+        aes_state.add_round_key(k);
+        result.push(aes_state.data);
+
+        aes_state.mix_columns_inv();
+        result.push(aes_state.data);
+
+        aes_state.shift_rows_inv();
+        result.push(aes_state.data);
+
+        aes_state.sub_bytes_inv();
+        result.push(aes_state.data);
+    }
+
+    aes_state.add_round_key(&keys[10]);
+    result.push(aes_state.data);
+
+    result
+}

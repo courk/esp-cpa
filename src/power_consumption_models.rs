@@ -108,3 +108,7 @@ impl ConsumptionModelRound1DecTable {
         }
     }
 }
+
+pub fn state_hamming_weight(state: &[u8; 16]) -> f64 {
+    state.iter().map(|c| c.count_ones() as f64).sum()
+}
