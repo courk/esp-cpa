@@ -65,9 +65,9 @@ class Top(Elaboratable):
 
         dut_clk = platform.request("dut_clk", 0)
 
-        qspi_cs = platform.request("qspi_cs", 0)
+        qspi_cs = platform.request("qspi_cs", 0).i
         p_qspi_cs = platform.request("p_qspi_cs", 0)
-        qspi_clk = platform.request("qspi_clk", 0)
+        qspi_clk = platform.request("qspi_clk", 0).i
         qspi_in = platform.request("qspi_sd1", 0)
 
         heat_ctrl = platform.request("heat_ctrl", 0)
