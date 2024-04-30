@@ -155,7 +155,7 @@ def main(
         except binascii.Error:
             raise typer.BadParameter("Invalid key format")
         if len(raw_key) != 16:
-            raise typer.BadParameter("The size of the key is expected to be 32 bytes")
+            raise typer.BadParameter("The size of the key is expected to be 16 bytes")
         if analysis_config_filename is not None:
             live_key_ranker = LiveKeyRanker(
                 raw_key, load_config(analysis_config_filename)
